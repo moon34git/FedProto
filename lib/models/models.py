@@ -5,7 +5,7 @@
 from torch import nn
 import torch.nn.functional as F
 import torchvision.models as models
-
+import torch
 
 class MLP(nn.Module):
     def __init__(self, dim_in, dim_hidden, dim_out):
@@ -50,15 +50,48 @@ class CNNMnist(nn.Module):
         self.conv2_drop = nn.Dropout2d()
         self.fc1 = nn.Linear(int(320/20*args.out_channels), 50)
         self.fc2 = nn.Linear(50, args.num_classes)
-
+    #Basic
     def forward(self, x):
         x = F.relu(F.max_pool2d(self.conv1(x), 2))
+        print(f'conv1.shape: {x.shape}')
         x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
+        print(f'conv2.shape: {x.shape}')
         x = x.view(-1, x.shape[1]*x.shape[2]*x.shape[3])
         x1 = F.relu(self.fc1(x))
+        print(f'fc1.shape: {x1.shape}')
         x = F.dropout(x1, training=self.training)
         x = self.fc2(x)
+        print(f'fc2.shape: {x.shape}')
         return F.log_softmax(x, dim=1), x1
+            
+    # def forward(self, x):
+    #     x = F.relu(F.max_pool2d(self.conv1(x), 2))
+    #     x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
+    #     x1 = x.view(-1, x.shape[1]*x.shape[2]*x.shape[3])
+    #     # print(f'x1.shape: {x1.shape}')
+    #     x2 = F.relu(self.fc1(x1))
+    #     # print(f'x2.shape: {x2.shape}')
+    #     concatenated_tensor = torch.cat((x1, x2), dim=1)
+    #     # print(f'concatenated_tensor.shape: {concatenated_tensor.shape}')
+    #     x = F.dropout(x2, training=self.training)
+    #     x = self.fc2(x)
+    #     return F.log_softmax(x, dim=1), concatenated_tensor
+        
+    # def forward(self, x):
+    #     x1 = F.relu(F.max_pool2d(self.conv1(x), 2))
+    #     x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x1)), 2))
+    #     x = x.view(-1, x.shape[1]*x.shape[2]*x.shape[3])
+    #     x2 = F.relu(self.fc1(x))
+    #     reshaped_tensor = x1.view(x1.shape[0], -1)
+    #     concatenated_tensor = torch.cat((reshaped_tensor, x2), dim=1)
+    #     x = F.dropout(x2, training=self.training)
+    #     x = self.fc2(x)
+    #     return F.log_softmax(x, dim=1), concatenated_tensor
+    
+
+        
+
+    
 
 class CNNFashion_Mnist(nn.Module):
     def __init__(self, args):

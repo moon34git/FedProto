@@ -134,6 +134,7 @@ class LocalUpdate(object):
 
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss), acc_val.item()
 
+    #한 명의 클라이언트에 대해 
     def update_weights_het(self, args, idx, global_protos, model, global_round=round):
         # Set mode to train model
         model.train()
@@ -146,31 +147,49 @@ class LocalUpdate(object):
         elif self.args.optimizer == 'adam':
             optimizer = torch.optim.Adam(model.parameters(), lr=self.args.lr,
                                          weight_decay=1e-4)
-
+        # print(f'self.args.train_ep: {self.args.train_ep}')
+        #로컬 에포크
         for iter in range(self.args.train_ep):
             batch_loss = {'total':[],'1':[], '2':[], '3':[]}
             agg_protos_label = {}
+
+            # count = 0
+            #로컬 배치 4인 경우 -> eg. 360개 데이터 크기면 90번 반복
             for batch_idx, (images, label_g) in enumerate(self.trainloader):
                 images, labels = images.to(self.device), label_g.to(self.device)
 
                 # loss1: cross-entrophy loss, loss2: proto distance loss
                 model.zero_grad()
                 log_probs, protos = model(images)
+                #proto shape: [4, 50] - 4 is batch size, 50 is proto dim (relu(linear))
+                #[4, 50]에 매핑되는 Label도 함께 저장됨
+                # print(f'update_weights_het iter: {iter}, proto shape: {protos.shape}, proto same?: {torch.equal(protos, protos.data)}')
+                # print(f'labels: {labels}, proto: {protos}')
                 loss1 = self.criterion(log_probs, labels)
 
                 loss_mse = nn.MSELoss()
                 if len(global_protos) == 0:
                     loss2 = 0*loss1
                 else:
+                    #protos == protos.data
                     proto_new = copy.deepcopy(protos.data)
                     i = 0
+                    #Label에 해당하는 proto를 global proto로 대체
                     for label in labels:
                         if label.item() in global_protos.keys():
+                            #4개의 샘플로 이루어진 배치에서 각 샘플의 label에 해당하는 proto를 proto_new로 매핑
                             proto_new[i, :] = global_protos[label.item()][0].data
+                            # print(f'i: {i}, proto_new: {proto_new[i, :3]}')
                         i += 1
+                    # (eq 8)
+                    # print(f'proto_new shape: {proto_new.shape}, protos shape: {protos.shape}')
+                    # print(f'proto_new: {proto_new}, protos: {protos}')
                     loss2 = loss_mse(proto_new, protos)
 
+                #L_s: loss1, L_R: loss2, ld: importance weight (eq 7)
                 loss = loss1 + loss2 * args.ld
+                #agg_protos_label: {7: [proto1, proto2, ...], 8: [proto1, proto2, ...], ...]}
+                # print(f'agg_protos_label after eq 7: {agg_protos_label.keys()}, agg_protos_label shape: {agg_protos_label[7][0].shape}')
                 loss.backward()
                 optimizer.step()
 
@@ -180,20 +199,25 @@ class LocalUpdate(object):
                     else:
                         agg_protos_label[label_g[i].item()] = [protos[i,:]]
 
+                # print(f'agg_protos_label: {agg_protos_label}')
+
                 log_probs = log_probs[:, 0:args.num_classes]
                 _, y_hat = log_probs.max(1)
                 acc_val = torch.eq(y_hat, labels.squeeze()).float().mean()
 
-                if self.args.verbose and (batch_idx % 10 == 0):
-                    print('| Global Round : {} | User: {} | Local Epoch : {} | [{}/{} ({:.0f}%)]\tLoss: {:.3f} | Acc: {:.3f}'.format(
-                        global_round, idx, iter, batch_idx * len(images),
-                        len(self.trainloader.dataset),
-                        100. * batch_idx / len(self.trainloader),
-                        loss.item(),
-                        acc_val.item()))
+                # if self.args.verbose and (batch_idx % 10 == 0):
+                #     print('| Global Round : {} | User: {} | Local Epoch : {} | [{}/{} ({:.0f}%)]\tLoss: {:.3f} | Acc: {:.3f}'.format(
+                #         global_round, idx, iter, batch_idx * len(images),
+                #         len(self.trainloader.dataset),
+                #         100. * batch_idx / len(self.trainloader),
+                #         loss.item(),
+                #         acc_val.item()))
                 batch_loss['total'].append(loss.item())
                 batch_loss['1'].append(loss1.item())
                 batch_loss['2'].append(loss2.item())
+
+                # count += 1
+            # print(f'count: {count}')
             epoch_loss['total'].append(sum(batch_loss['total'])/len(batch_loss['total']))
             epoch_loss['1'].append(sum(batch_loss['1']) / len(batch_loss['1']))
             epoch_loss['2'].append(sum(batch_loss['2']) / len(batch_loss['2']))
@@ -517,7 +541,7 @@ def test_inference_new_het_lt(args, local_model_list, test_dataset, classes_list
                         proto_new[i, :] = global_protos[label.item()][0].data
                     i += 1
                 loss2 = loss_mse(proto_new, protos)
-                if args.device == 'cuda':
+                if args.device == 'cuda:2':
                     loss2 = loss2.cpu().detach().numpy()
                 else:
                     loss2 = loss2.detach().numpy()
@@ -573,7 +597,7 @@ def save_protos(args, local_model_list, test_dataset, user_groups_gt):
     for i in range(args.num_users):
         for label in agg_protos_label[i].keys():
             for proto in agg_protos_label[i][label]:
-                if args.device == 'cuda':
+                if args.device == 'cuda:2':
                     tmp = proto.cpu().detach().numpy()
                 else:
                     tmp = proto.detach().numpy()

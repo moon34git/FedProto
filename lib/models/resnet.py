@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
 import torch.nn.functional as F
-
+import torch
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152']
@@ -145,7 +145,7 @@ class ResNet(nn.Module):
             layers.append(block(self.inplanes, planes))
 
         return nn.Sequential(*layers)
-
+    #Basic
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
@@ -153,15 +153,38 @@ class ResNet(nn.Module):
         x = self.maxpool(x)
 
         x = self.layer1(x)
+        print(f'layer1.shape: {x.shape}')
         x = self.layer2(x)
+        print(f'layer2.shape: {x.shape}')
         x = self.layer3(x)
+        print(f'layer3.shape: {x.shape}')
         x1 = self.layer4(x)
+        print(f'layer4.shape: {x1.shape}')
 
         x = self.avgpool(x1)
+        print(f'avgpool.shape: {x.shape}')
         x = x.view(x.size(0), -1)
         x = self.fc(x)
-
+        print(f'fc.shape: {x.shape}')
         return F.log_softmax(x, dim=1), x1
+
+    # def forward(self, x):
+    #     x = self.conv1(x)
+    #     x = self.bn1(x)
+    #     x = self.relu(x)
+    #     x = self.maxpool(x)
+
+    #     x = self.layer1(x)
+    #     x = self.layer2(x)
+    #     x = self.layer3(x)
+    #     x1 = self.layer4(x)
+    
+    #     x = self.avgpool(x1)
+    #     x = x.view(x.size(0), -1)
+    #     concatenated_tensor = torch.cat((x, x1.view(x1.size(0), -1)), dim=1)
+    #     x = self.fc(x)
+
+    #     return F.log_softmax(x, dim=1), concatenated_tensor
 
 
 def resnet18(args, pretrained=False, **kwargs):

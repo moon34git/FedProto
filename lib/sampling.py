@@ -83,6 +83,13 @@ def mnist_noniid(args, dataset, num_users, n_list, k_list):
         n = n_list[i]
         k = k_list[i]
         k_len = args.train_shots_max
+        ###
+        # if (i == 10) or (i == 11):
+        #     classes = np.array([1,3,5,7,9])
+        # else:
+        #     classes = random.sample(range(0,args.num_classes), n)
+        ###
+
         classes = random.sample(range(0,args.num_classes), n)
         classes = np.sort(classes)
         print("user {:d}: {:d}-way {:d}-shot".format(i + 1, n, k))

@@ -206,7 +206,6 @@ def agg_func(protos):
     """
     Returns the average of the weights.
     """
-
     for [label, proto_list] in protos.items():
         if len(proto_list) > 1:
             proto = 0 * proto_list[0].data
